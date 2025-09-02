@@ -1,0 +1,124 @@
+### **Kubernetes**
+
+**Q1. What is the difference between a Deployment and a StatefulSet in Kubernetes?**
+
+* **Deployment**:
+
+  * Used for stateless applications (e.g., web servers, APIs).
+  * Pods are interchangeable; identities don’t matter.
+  * Scaling up/down is easy, replicas are identical.
+  * Pods get random names (e.g., `nginx-deployment-abc123`).
+
+* **StatefulSet**:
+
+  * Used for stateful applications (e.g., databases, Kafka, Zookeeper).
+  * Each pod has a stable, unique identity and persistent storage.
+  * Pods are created/destroyed in order (sequential).
+  * Pods get predictable names (e.g., `mysql-0`, `mysql-1`).
+
+👉 **In short:** Deployment = stateless, interchangeable pods; StatefulSet = stateful, unique pods with stable storage.
+
+---
+
+**Q2. When should you use a StatefulSet instead of a Deployment?**
+Use **StatefulSet** when:
+
+* You need stable pod network identities (like `pod-0`, `pod-1`).
+* Each pod must have its own persistent volume (like databases).
+* Order of deployment and termination matters.
+* Apps require sticky identity across restarts (like Kafka brokers).
+
+---
+
+**Q3. Can you attach a volume to a Deployment? If yes, how is it different from a StatefulSet?**
+
+* **Yes**, you can attach a **volume** (like PVC) to a Deployment. But all pods will share the same volume (unless you use dynamic PVCs with subPaths).
+* In **StatefulSet**, each pod gets its **own dedicated volume** (via volumeClaimTemplates). This ensures data persists uniquely for each pod, even if rescheduled.
+
+---
+
+**Q4. What could cause a StatefulSet pod to fail when rescheduled to a different availability zone?**
+
+* Persistent Volume (PV) is **zone-specific** (EBS, PD, etc.).
+* If pod moves to another AZ, the PV may not be accessible.
+* Fix: Use **multi-AZ storage** (like EFS, Ceph, Portworx) or **StorageClass** with topology-aware provisioning.
+
+---
+
+**Q5. How do PV/PVC behave across zones in EKS or Kubernetes in general?**
+
+* PVs are bound to a specific zone (for storage backends like AWS EBS).
+* PVCs will only bind to PVs in the same zone.
+* If pod is scheduled in a different zone → PVC binding fails.
+* Solution: Use **multi-zone storage (EFS, CSI drivers with replication, storage classes with topology spread constraints).**
+
+---
+
+**Q6. What is a DaemonSet and when would you use it?**
+
+* **DaemonSet** ensures that **one pod runs on every node** (or selected nodes).
+* Use cases:
+
+  * Node monitoring (Prometheus Node Exporter).
+  * Logging agents (Fluentd, Filebeat).
+  * Security agents (Falco).
+  * Network plugins (CNI, kube-proxy).
+
+---
+
+**Q7. If you want two pods per node (instead of one), what alternatives to DaemonSet can you use?**
+
+* DaemonSet doesn’t support “two per node” directly.
+  Alternatives:
+
+1. Use **Deployment** with `podAntiAffinity` rules to ensure distribution across nodes.
+2. Use **StatefulSet** with `podAntiAffinity`.
+3. Custom **scheduler extender** or **topology spread constraints** (`maxSkew=2`).
+
+---
+
+**Q8. What is a Pod Disruption Budget (PDB) and how is it useful?**
+
+* PDB specifies the **minimum number or percentage of pods that must remain available** during voluntary disruptions (like node drain, upgrades).
+* Prevents too many pods from going down at once.
+* Example: Database cluster with 3 pods → set `minAvailable: 2`.
+
+---
+
+**Q9. How do you handle certificate rotation in on-prem Kubernetes clusters?**
+
+* Use **kubeadm cert renew** for control plane certs.
+* Automate rotation with scripts or cron jobs.
+* Use cert-manager for application certificates.
+* Restart kube-apiserver, kubelet, etc. after renewal.
+
+---
+
+**Q10. What are the challenges with scheduling pods in a multi-node, multi-AZ setup?**
+
+* **Storage locality** (PV tied to one AZ).
+* **Network latency** between zones.
+* **Pod anti-affinity** may restrict scheduling.
+* **Uneven workload distribution** across AZs.
+* **Cross-AZ traffic cost** in cloud providers.
+
+---
+
+**Q11. How does the Kubernetes scheduler decide where to place pods?**
+
+* Scheduler steps:
+
+  1. **Filter**: Select nodes that meet requirements (CPU, memory, labels, taints/tolerations).
+  2. **Score**: Rank nodes by preferences (affinity, topology, spreading).
+  3. **Bind**: Assign pod to highest-scoring node.
+
+---
+
+**Q12. What happens when a StatefulSet pod cannot mount its volume after moving to another node?**
+
+* Pod goes into **CrashLoopBackOff / Pending**.
+* Scheduler waits for PVC binding.
+* If PV is AZ-specific → it cannot attach to the new node.
+* Fix: Use **storage that supports cross-node/cross-AZ mounting** (EFS, Ceph, Portworx).
+
+---
